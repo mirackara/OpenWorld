@@ -230,11 +230,58 @@ fn get_messages(
     app_state.storage.get_messages(&conversation_id)
 }
 
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
+
 // ── System Info ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SystemMetrics {
+    total_ram: u64,
+    used_ram: u64,
+    cpu_usage: f32, // Percentage 0-100
+    db_size_bytes: u64,
+}
 
 #[tauri::command]
 fn get_system_memory() -> Result<u64, String> {
-    Ok(16 * 1024 * 1024 * 1024) // default 16GB
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing().with_memory(MemoryRefreshKind::nothing().with_ram()),
+    );
+    sys.refresh_memory();
+    Ok(sys.total_memory())
+}
+
+#[tauri::command]
+fn get_system_metrics() -> Result<SystemMetrics, String> {
+    let mut sys = System::new_with_specifics(
+        RefreshKind::nothing()
+            .with_memory(MemoryRefreshKind::nothing().with_ram())
+            .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
+    );
+    
+    // Refresh twice for CPU usage delta to be accurate
+    sys.refresh_cpu_usage();
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    sys.refresh_cpu_usage();
+    sys.refresh_memory();
+
+    let cpu_usage = sys.global_cpu_usage();
+    
+    // Get database size at ~/.openworld/data.db
+    let db_size_bytes = if let Some(mut path) = dirs::home_dir() {
+        path.push(".openworld");
+        path.push("data.db");
+        std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+    } else {
+        0
+    };
+
+    Ok(SystemMetrics {
+        total_ram: sys.total_memory(),
+        used_ram: sys.used_memory(),
+        cpu_usage,
+        db_size_bytes,
+    })
 }
 
 // ── Memory Commands ─────────────────────────────────────────────────────
@@ -317,6 +364,7 @@ pub fn run() {
             add_message,
             get_messages,
             get_system_memory,
+            get_system_metrics,
             add_memory_cmd,
             list_memories_cmd,
             delete_memory_cmd,

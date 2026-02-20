@@ -10,6 +10,13 @@ interface MemoryItem {
     created_at: string;
 }
 
+interface SystemMetrics {
+    total_ram: number;
+    used_ram: number;
+    cpu_usage: number;
+    db_size_bytes: number;
+}
+
 export default function SettingsPage() {
     const { theme, setTheme, defaultModel, setDefaultModel, systemPrompt, setSystemPrompt } =
         useSettingsStore();
@@ -17,13 +24,27 @@ export default function SettingsPage() {
     const [saved, setSaved] = useState(false);
     const [memories, setMemories] = useState<MemoryItem[]>([]);
     const [newMemory, setNewMemory] = useState('');
+    const [activeTab, setActiveTab] = useState<'general' | 'advanced'>('general');
+    const [sysMetrics, setSysMetrics] = useState<SystemMetrics | null>(null);
 
     useEffect(() => {
         invoke<any[]>('list_models')
             .then(setInstalledModels)
             .catch(console.error);
         loadMemories();
-    }, []);
+
+        // Polling loop for live system metrics
+        let interval: ReturnType<typeof setInterval>;
+        if (activeTab === 'advanced') {
+            const fetchMetrics = () => {
+                invoke<SystemMetrics>('get_system_metrics').then(setSysMetrics).catch(console.error);
+            };
+            fetchMetrics(); // Fetch immediately
+            interval = setInterval(fetchMetrics, 2000); // refresh every 2s
+        }
+
+        return () => clearInterval(interval);
+    }, [activeTab]);
 
     async function loadMemories() {
         try {
@@ -83,111 +104,130 @@ export default function SettingsPage() {
             <div className="settings-header">
                 <h1>Settings</h1>
                 <p>Customize your OpenWorld experience</p>
+
+                <div className="settings-tabs">
+                    <button
+                        className={`tab-btn ${activeTab === 'general' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('general')}
+                    >
+                        General
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'advanced' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('advanced')}
+                    >
+                        Advanced
+                    </button>
+                </div>
             </div>
 
             <div className="settings-sections">
-                {/* Appearance */}
-                <section className="settings-section card">
-                    <h3 className="settings-section-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="5" />
-                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                        </svg>
-                        Appearance
-                    </h3>
-                    <div className="setting-row">
-                        <div className="setting-info">
-                            <span className="setting-label">Theme</span>
-                            <span className="setting-desc">Choose between dark and light mode</span>
-                        </div>
-                        <button className="theme-toggle" onClick={handleThemeToggle}>
-                            <div className={`toggle-track ${theme}`}>
-                                <div className="toggle-thumb">
-                                    {theme === 'dark' ? '🌙' : '☀️'}
+                {/* GENERAL TAB */}
+                {activeTab === 'general' && (
+                    <>
+                        <section className="settings-section card">
+                            <h3 className="settings-section-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="5" />
+                                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                </svg>
+                                Appearance
+                            </h3>
+                            <div className="setting-row">
+                                <div className="setting-info">
+                                    <span className="setting-label">Theme</span>
+                                    <span className="setting-desc">Choose between dark and light mode</span>
                                 </div>
+                                <button className="theme-toggle" onClick={handleThemeToggle}>
+                                    <div className={`toggle-track ${theme}`}>
+                                        <div className="toggle-thumb">
+                                            {theme === 'dark' ? '🌙' : '☀️'}
+                                        </div>
+                                    </div>
+                                </button>
                             </div>
-                        </button>
-                    </div>
-                </section>
+                        </section>
 
-                {/* Default Model */}
-                <section className="settings-section card">
-                    <h3 className="settings-section-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-                        </svg>
-                        Default AI Model
-                    </h3>
-                    <div className="setting-row">
-                        <div className="setting-info">
-                            <span className="setting-label">Choose your default model</span>
-                            <span className="setting-desc">This model will be used for new conversations</span>
-                        </div>
-                        <select
-                            className="input model-select"
-                            value={defaultModel}
-                            onChange={(e) => setDefaultModel(e.target.value)}
-                        >
-                            {installedModels.map((m) => (
-                                <option key={m.name} value={m.name}>
-                                    {getFriendlyModelName(m.name)}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </section>
+                        {/* Default Model */}
+                        <section className="settings-section card">
+                            <h3 className="settings-section-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                                </svg>
+                                Default AI Model
+                            </h3>
+                            <div className="setting-row">
+                                <div className="setting-info">
+                                    <span className="setting-label">Choose your default model</span>
+                                    <span className="setting-desc">This model will be used for new conversations</span>
+                                </div>
+                                <select
+                                    className="input model-select"
+                                    value={defaultModel}
+                                    onChange={(e) => setDefaultModel(e.target.value)}
+                                >
+                                    {installedModels.map((m) => (
+                                        <option key={m.name} value={m.name}>
+                                            {getFriendlyModelName(m.name)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </section>
 
-                {/* Memory */}
-                <section className="settings-section card">
-                    <h3 className="settings-section-title">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 2a10 10 0 0110 10 10 10 0 01-10 10A10 10 0 012 12 10 10 0 0112 2z" />
-                            <path d="M12 16v-4M12 8h.01" />
-                        </svg>
-                        Memory
-                    </h3>
-                    <div className="setting-col">
-                        <span className="setting-label">Things the AI remembers about you</span>
-                        <span className="setting-desc">
-                            These facts persist across all conversations. Add things like your name, preferences, or context the AI should always know.
-                        </span>
+                        {/* Memory */}
+                        <section className="settings-section card">
+                            <h3 className="settings-section-title">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 2a10 10 0 0110 10 10 10 0 01-10 10A10 10 0 012 12 10 10 0 0112 2z" />
+                                    <path d="M12 16v-4M12 8h.01" />
+                                </svg>
+                                Memory
+                            </h3>
+                            <div className="setting-col">
+                                <span className="setting-label">Things the AI remembers about you</span>
+                                <span className="setting-desc">
+                                    These facts persist across all conversations. Add things like your name, preferences, or context the AI should always know.
+                                </span>
 
-                        <div className="memory-list">
-                            {memories.length === 0 && (
-                                <p className="memory-empty">No memories yet. Add some below!</p>
-                            )}
-                            {memories.map((mem) => (
-                                <div key={mem.id} className="memory-item">
-                                    <span className="memory-content">{mem.content}</span>
-                                    <button
-                                        className="memory-delete"
-                                        onClick={() => handleDeleteMemory(mem.id)}
-                                        title="Remove memory"
-                                    >
-                                        ×
+                                <div className="memory-list">
+                                    {memories.length === 0 && (
+                                        <p className="memory-empty">No memories yet. Add some below!</p>
+                                    )}
+                                    {memories.map((mem) => (
+                                        <div key={mem.id} className="memory-item">
+                                            <span className="memory-content">{mem.content}</span>
+                                            <button
+                                                className="memory-delete"
+                                                onClick={() => handleDeleteMemory(mem.id)}
+                                                title="Remove memory"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="memory-add">
+                                    <input
+                                        className="input memory-input"
+                                        placeholder="e.g., My name is John, I'm a software engineer..."
+                                        value={newMemory}
+                                        onChange={(e) => setNewMemory(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleAddMemory();
+                                        }}
+                                    />
+                                    <button className="btn btn-primary" onClick={handleAddMemory} disabled={!newMemory.trim()}>
+                                        Add
                                     </button>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        </section>
+                    </>
+                )}
 
-                        <div className="memory-add">
-                            <input
-                                className="input memory-input"
-                                placeholder="e.g., My name is John, I'm a software engineer..."
-                                value={newMemory}
-                                onChange={(e) => setNewMemory(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleAddMemory();
-                                }}
-                            />
-                            <button className="btn btn-primary" onClick={handleAddMemory} disabled={!newMemory.trim()}>
-                                Add
-                            </button>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Custom Instructions */}
+                {/* ADVANCED TAB */}
                 <section className="settings-section card">
                     <h3 className="settings-section-title">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -210,12 +250,57 @@ export default function SettingsPage() {
                     </div>
                 </section>
 
+                {/* ADVANCED TAB */}
+                {activeTab === 'advanced' && (
+                    <section className="settings-section card observability-panel">
+                        <h3 className="settings-section-title">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
+                                <path d="M4 12h16M12 4v16" />
+                            </svg>
+                            System Metrics (Live)
+                        </h3>
+                        <div className="metrics-grid">
+                            <div className="metric-card">
+                                <div className="metric-label">CPU Load</div>
+                                <div className="metric-value">
+                                    {sysMetrics ? `${sysMetrics.cpu_usage.toFixed(1)}%` : '--'}
+                                </div>
+                            </div>
+                            <div className="metric-card">
+                                <div className="metric-label">Memory Usage</div>
+                                <div className="metric-value">
+                                    {sysMetrics ? `${(sysMetrics.used_ram / 1e9).toFixed(1)} GB` : '--'}
+                                    <span className="metric-sub">
+                                        / {sysMetrics ? (sysMetrics.total_ram / 1e9).toFixed(1) : '-'} GB
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="metric-card">
+                                <div className="metric-label">Database Size</div>
+                                <div className="metric-value">
+                                    {sysMetrics ? `${(sysMetrics.db_size_bytes / 1e6).toFixed(2)} MB` : '--'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="setting-row mt-xl">
+                            <div className="setting-info">
+                                <span className="setting-label">Data Privacy</span>
+                                <span className="setting-desc">All metric data is collected locally and never leaves your machine.</span>
+                            </div>
+                        </div>
+                    </section>
+                )}
+
                 {/* Save */}
-                <div className="settings-save">
-                    <button className="btn btn-primary btn-lg" onClick={handleSave}>
-                        {saved ? '✓ Saved!' : 'Save Settings'}
-                    </button>
-                </div>
+                {activeTab === 'general' && (
+                    <div className="settings-save">
+                        <button className="btn btn-primary btn-lg" onClick={handleSave}>
+                            {saved ? '✓ Saved!' : 'Save Settings'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
