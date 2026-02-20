@@ -44,10 +44,13 @@ export default function ChatPage() {
 
     // Listen for streaming tokens
     useEffect(() => {
-        let unlisten: (() => void) | undefined;
+        let cancelled = false;
+        let unlistenFn: (() => void) | undefined;
+
         listen<{ conversation_id: string; content: string; done: boolean }>(
             'chat-stream-token',
             (event) => {
+                if (cancelled) return; // Ignore events if this effect was cleaned up
                 const { content, done } = event.payload;
                 if (content) {
                     appendStreamingContent(content);
@@ -57,9 +60,18 @@ export default function ChatPage() {
                 }
             }
         ).then((fn) => {
-            unlisten = fn;
+            if (cancelled) {
+                // Effect was cleaned up before listen resolved — immediately unlisten
+                fn();
+            } else {
+                unlistenFn = fn;
+            }
         });
-        return () => unlisten?.();
+
+        return () => {
+            cancelled = true;
+            unlistenFn?.();
+        };
     }, []);
 
 
