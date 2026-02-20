@@ -197,6 +197,18 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
+        .setup(|app| {
+            // Auto-start Ollama on every app launch
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                eprintln!("[openworld] App startup: auto-starting Ollama...");
+                match ollama::ensure_ollama_ready(handle).await {
+                    Ok(()) => eprintln!("[openworld] App startup: Ollama is ready!"),
+                    Err(e) => eprintln!("[openworld] App startup: Ollama failed to start: {}", e),
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config_cmd,
