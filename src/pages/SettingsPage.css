@@ -1,0 +1,140 @@
+/* ── Settings Page ─────────────────────────────────────────────── */
+
+.settings-page {
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--space-2xl);
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.settings-header {
+    margin-bottom: var(--space-2xl);
+}
+
+.settings-header h1 {
+    font-size: var(--font-2xl);
+    font-weight: 700;
+    margin-bottom: var(--space-xs);
+}
+
+.settings-header p {
+    color: var(--text-secondary);
+}
+
+.settings-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.settings-section {
+    padding: var(--space-lg);
+}
+
+.settings-section-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-md);
+    font-weight: 600;
+    margin-bottom: var(--space-lg);
+    color: var(--text-primary);
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+}
+
+.setting-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.setting-label {
+    font-size: var(--font-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.setting-desc {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+}
+
+/* ── Theme Toggle ─────────────────────────────────────────────── */
+
+.theme-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.toggle-track {
+    width: 56px;
+    height: 30px;
+    border-radius: var(--radius-full);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    position: relative;
+    transition: all var(--transition-base);
+}
+
+.toggle-track.light {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+}
+
+.toggle-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: transform var(--transition-base);
+    box-shadow: var(--shadow-sm);
+}
+
+.toggle-track.light .toggle-thumb {
+    transform: translateX(26px);
+}
+
+/* ── Model Select ─────────────────────────────────────────────── */
+
+.model-select {
+    max-width: 250px;
+    cursor: pointer;
+}
+
+/* ── System Prompt ────────────────────────────────────────────── */
+
+.system-prompt-input {
+    resize: vertical;
+    min-height: 100px;
+    margin-top: var(--space-sm);
+}
+
+/* ── Save ─────────────────────────────────────────────────────── */
+
+.settings-save {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-md);
+}

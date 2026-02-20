@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+target/
+
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+src-tauri/Frameworks/
+
+# App data (never commit user data)
+.openworld/
+
+# Logs
+*.log

@@ -1,0 +1,185 @@
+/* ── Models Page ───────────────────────────────────────────────── */
+
+.models-page {
+    height: 100%;
+    overflow-y: auto;
+    padding: var(--space-2xl);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.models-header {
+    margin-bottom: var(--space-2xl);
+}
+
+.models-header h1 {
+    font-size: var(--font-2xl);
+    font-weight: 700;
+    margin-bottom: var(--space-xs);
+}
+
+.models-header p {
+    color: var(--text-secondary);
+}
+
+.models-section {
+    margin-bottom: var(--space-2xl);
+}
+
+.section-title {
+    font-size: var(--font-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-md);
+    color: var(--text-secondary);
+}
+
+/* ── Installed Grid ───────────────────────────────────────────── */
+
+.installed-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.installed-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.installed-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.installed-emoji {
+    font-size: 28px;
+}
+
+.installed-info {
+    flex: 1;
+}
+
+.installed-name {
+    display: block;
+    font-weight: 600;
+    font-size: var(--font-md);
+}
+
+.installed-size {
+    display: block;
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+}
+
+.installed-desc {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+.installed-actions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    margin-top: var(--space-xs);
+}
+
+.delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+/* ── Available Grid ───────────────────────────────────────────── */
+
+.available-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-md);
+}
+
+.model-catalog-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.model-catalog-card.installed {
+    opacity: 0.7;
+}
+
+.catalog-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.catalog-emoji {
+    font-size: 28px;
+}
+
+.catalog-info {
+    flex: 1;
+}
+
+.catalog-name {
+    display: block;
+    font-weight: 600;
+    font-size: var(--font-md);
+}
+
+.catalog-best-for {
+    display: block;
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+}
+
+.catalog-desc {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+.catalog-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.catalog-size {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+}
+
+.catalog-compat {
+    font-size: var(--font-xs);
+    font-weight: 500;
+}
+
+.catalog-pulling {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.pull-status {
+    font-size: var(--font-xs);
+    color: var(--text-tertiary);
+}
+
+.catalog-download-btn {
+    width: 100%;
+    margin-top: var(--space-xs);
+}
+
+.catalog-download-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.catalog-installed-badge {
+    text-align: center;
+    padding-top: var(--space-xs);
+}

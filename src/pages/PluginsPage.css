@@ -1,0 +1,64 @@
+/* ── Plugins Page ──────────────────────────────────────────────── */
+
+.plugins-page {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2xl);
+}
+
+.plugins-center {
+    text-align: center;
+    max-width: 500px;
+}
+
+.plugins-icon {
+    margin-bottom: var(--space-lg);
+}
+
+.plugins-center h1 {
+    font-size: var(--font-2xl);
+    font-weight: 700;
+    margin-bottom: var(--space-sm);
+}
+
+.plugins-subtitle {
+    color: var(--text-secondary);
+    margin-bottom: var(--space-xl);
+}
+
+.plugins-preview {
+    text-align: left;
+}
+
+.plugins-preview h3 {
+    font-size: var(--font-lg);
+    font-weight: 600;
+    margin-bottom: var(--space-sm);
+    color: var(--accent);
+}
+
+.plugins-preview p {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: var(--space-lg);
+}
+
+.plugins-examples {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-sm);
+}
+
+.plugin-example {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
