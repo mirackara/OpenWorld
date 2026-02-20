@@ -130,3 +130,102 @@ pub async fn send_chat_message(
 
     Ok(full_response)
 }
+
+/// Analyze the latest messages and extract new personal facts about the user.
+/// Returns a list of concise fact strings. This uses a non-streaming LLM call.
+pub async fn extract_facts_from_conversation(
+    messages: &[ChatMessage],
+    model: &str,
+    existing_memories: &[String],
+) -> Result<Vec<String>, String> {
+    let config = load_config();
+    let url = format!("{}/api/chat", config.ollama_host);
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+
+    // Only look at the last few messages for efficiency
+    let recent: Vec<&ChatMessage> = messages.iter().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+
+    // Build the conversation excerpt
+    let mut excerpt = String::new();
+    for msg in &recent {
+        let label = if msg.role == "user" { "User" } else { "Assistant" };
+        excerpt.push_str(&format!("{}: {}\n", label, msg.content));
+    }
+
+    // Build existing memories context so we don't duplicate
+    let existing_str = if existing_memories.is_empty() {
+        "None yet.".to_string()
+    } else {
+        existing_memories.iter().map(|m| format!("- {}", m)).collect::<Vec<_>>().join("\n")
+    };
+
+    let system_prompt = format!(
+        r#"You are a fact extractor. Analyze the conversation below and extract ONLY new personal facts about the user.
+
+Rules:
+- Extract facts like: name, job, location, hobbies, preferences, family, pets, technical skill level
+- Each fact must be a single short sentence (under 100 characters)
+- Do NOT extract opinions about topics, conversation context, or things the assistant said
+- Do NOT repeat facts already known (listed below)
+- If there are NO new facts, respond with exactly: NONE
+- Output one fact per line, no bullets, no numbering
+
+Already known facts:
+{}
+
+Conversation:
+{}"#,
+        existing_str, excerpt
+    );
+
+    let ollama_messages = vec![
+        serde_json::json!({"role": "system", "content": system_prompt}),
+        serde_json::json!({"role": "user", "content": "Extract new personal facts from the conversation above."}),
+    ];
+
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": ollama_messages,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Fact extraction request failed: {}", e))?;
+
+    #[derive(Deserialize)]
+    struct OllamaResponse {
+        message: Option<OllamaChatMsg>,
+    }
+
+    let body: OllamaResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse fact extraction response: {}", e))?;
+
+    let response_text = body
+        .message
+        .and_then(|m| m.content)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    eprintln!("[openworld] Fact extraction raw response: {}", response_text);
+
+    // Parse facts: one per line, skip empty/NONE
+    if response_text.is_empty() || response_text.to_uppercase().contains("NONE") {
+        return Ok(vec![]);
+    }
+
+    let facts: Vec<String> = response_text
+        .lines()
+        .map(|l| l.trim().trim_start_matches('-').trim_start_matches('•').trim().to_string())
+        .filter(|l| !l.is_empty() && l.len() <= 150 && !l.to_uppercase().contains("NONE"))
+        .collect();
+
+    Ok(facts)
+}

@@ -10,6 +10,7 @@ use ollama::ModelInfo;
 use serde::{Deserialize, Serialize};
 use storage::{Conversation, Message, StorageEngine};
 use std::sync::Mutex;
+use tauri::Manager;
 use tauri::State;
 
 pub struct AppState {
@@ -92,21 +93,71 @@ async fn send_message(
     messages: Vec<ChatMessage>,
     model: String,
 ) -> Result<String, String> {
-    // Read memory context to inject into the conversation
-    let memory_context = {
+    // Read memory context and existing memories for deduplication
+    let (memory_context, existing_memories) = {
         let app_state = state.lock().map_err(|e| e.to_string())?;
-        app_state.storage.get_memory_context().unwrap_or_default()
+        let ctx = app_state.storage.get_memory_context().unwrap_or_default();
+        let mems: Vec<String> = app_state
+            .storage
+            .list_memories()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, content, _)| content)
+            .collect();
+        (ctx, mems)
     };
+
+    // Clone app handle before it's moved into send_chat_message
+    let app_for_extraction = app.clone();
 
     // Send to Ollama and stream response (memory context is passed for system prompt injection)
     let full_response =
-        chat::send_chat_message(app, conversation_id.clone(), messages, model, memory_context).await?;
+        chat::send_chat_message(app, conversation_id.clone(), messages.clone(), model.clone(), memory_context).await?;
 
     // Save the assistant response to storage
-    let app_state = state.lock().map_err(|e| e.to_string())?;
-    app_state
-        .storage
-        .add_message(&conversation_id, "assistant", &full_response)?;
+    {
+        let app_state = state.lock().map_err(|e| e.to_string())?;
+        app_state
+            .storage
+            .add_message(&conversation_id, "assistant", &full_response)?;
+    }
+
+    // Background fact extraction — don't block the response
+    let messages_for_extraction = messages;
+    let model_for_extraction = model;
+    let response_for_extraction = full_response.clone();
+
+    tauri::async_runtime::spawn(async move {
+        // Build full message list including the assistant's reply
+        let mut all_msgs = messages_for_extraction;
+        all_msgs.push(ChatMessage {
+            role: "assistant".to_string(),
+            content: response_for_extraction,
+        });
+
+        eprintln!("[openworld] Starting background fact extraction...");
+        match chat::extract_facts_from_conversation(&all_msgs, &model_for_extraction, &existing_memories).await {
+            Ok(facts) if facts.is_empty() => {
+                eprintln!("[openworld] No new facts discovered.");
+            }
+            Ok(facts) => {
+                eprintln!("[openworld] Discovered {} new fact(s):", facts.len());
+                {
+                    let managed_state = app_for_extraction.state::<Mutex<AppState>>();
+                    let app_state = managed_state.lock().unwrap();
+                    for fact in &facts {
+                        eprintln!("[openworld]   + {}", fact);
+                        if let Err(e) = app_state.storage.add_memory(fact) {
+                            eprintln!("[openworld]   Failed to save fact: {}", e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[openworld] Fact extraction failed (non-fatal): {}", e);
+            }
+        }
+    });
 
     Ok(full_response)
 }
