@@ -21,7 +21,24 @@ OpenWorld is a fast, privacy-first, desktop AI client built with Tauri, React, a
 
 ## 🚀 Getting Started
 
-### Prerequisites
+### 📦 For Non-Technical Users (No coding required)
+
+The easiest way to get OpenWorld is to download a pre-built version. You don't need to know anything about terminals, code, or Ollama to run this app.
+
+1. Go to the **Releases** page (click the "Releases" link on the right side of this GitHub page).
+2. Look for the latest release (e.g., `v0.1.0`).
+3. Under **Assets**, download the installer for your computer:
+   - **Mac:** Download the `.dmg` file and drag the app into your Applications folder.
+   - **Windows:** Download the `.msi` file and click it to install. 
+4. Open the OpenWorld app. The Setup Wizard will automatically download the AI models and get everything running in the background for you.
+
+---
+
+### 💻 For Developers (Building from source)
+
+If you want to modify the app or build it yourself from source:
+
+#### Prerequisites
 
 To build OpenWorld from source, you need the standard Tauri development environment:
 - [Node.js](https://nodejs.org/) (v18+)
