@@ -450,20 +450,24 @@ pub async fn check_ollama_running() -> bool {
 
 pub async fn list_installed_models() -> Result<Vec<ModelInfo>, String> {
     let url = format!("{}/api/tags", get_ollama_url());
+    eprintln!("[openworld] list_installed_models: GET {}", url);
     let client = Client::new();
 
     let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
+        .map_err(|e| { eprintln!("[openworld] list_models failed: {}", e); format!("Failed to connect to Ollama: {}", e) })?;
 
-    let tags: TagsResponse = resp
-        .json()
-        .await
+    eprintln!("[openworld] list_models response: HTTP {}", resp.status());
+
+    let body = resp.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    eprintln!("[openworld] list_models body: {}", &body[..body.len().min(500)]);
+
+    let tags: TagsResponse = serde_json::from_str(&body)
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-    let models = tags
+    let models: Vec<ModelInfo> = tags
         .models
         .unwrap_or_default()
         .into_iter()
@@ -481,14 +485,23 @@ pub async fn list_installed_models() -> Result<Vec<ModelInfo>, String> {
         })
         .collect();
 
+    eprintln!("[openworld] list_models found {} models:", models.len());
+    for m in &models {
+        eprintln!("[openworld]   - '{}' ({} bytes)", m.name, m.size);
+    }
+
     Ok(models)
 }
 
 pub async fn pull_model(app: AppHandle, model_name: String) -> Result<(), String> {
+    eprintln!("[openworld] pull_model: pulling '{}'", model_name);
+
     // Make sure Ollama is running before pulling
     if !check_ollama_running().await {
+        eprintln!("[openworld] pull_model: Ollama not running!");
         return Err("AI engine is not running. Please restart the app.".to_string());
     }
+    eprintln!("[openworld] pull_model: Ollama is running, starting pull...");
 
     let url = format!("{}/api/pull", get_ollama_url());
     let client = Client::builder()

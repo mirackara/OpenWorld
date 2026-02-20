@@ -32,6 +32,7 @@ export default function ModelsPage() {
         setIsLoading(true);
         try {
             const models = await invoke<ModelInfo[]>('list_models');
+            console.log('[openworld] Installed models:', models.map(m => m.name));
             setInstalledModels(models);
         } catch (err) {
             console.error('Failed to load models:', err);
@@ -40,6 +41,7 @@ export default function ModelsPage() {
     }
 
     async function handlePull(modelId: string) {
+        console.log('[openworld] Pulling model:', modelId);
         setPullingModel(modelId);
         setPullProgress({ status: 'Starting...' });
 
@@ -52,9 +54,10 @@ export default function ModelsPage() {
 
         try {
             await invoke('pull_model', { modelName: modelId });
+            console.log('[openworld] Pull completed for:', modelId);
             await loadModels();
         } catch (err) {
-            console.error('Pull failed:', err);
+            console.error('[openworld] Pull failed:', err);
         } finally {
             setPullingModel(null);
             setPullProgress(null);
