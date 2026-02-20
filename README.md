@@ -32,6 +32,12 @@ The easiest way to get OpenWorld is to download a pre-built version. You don't n
    - **Windows:** Download the `.msi` file and click it to install. 
 4. Open the OpenWorld app. The Setup Wizard will automatically download the AI models and get everything running in the background for you.
 
+> **Note for Mac Users:** If you get an error saying *"OpenWorld is damaged and can't be opened. You should move it to the Trash,"* this is a standard macOS security warning for apps downloaded outside the App Store that aren't digitally signed yet. 
+> **To fix it:** Open your Terminal app, paste this exact command, press Enter, and then open the app normally:
+> ```bash
+> xattr -cr /Applications/OpenWorld.app
+> ```
+
 ---
 
 ### 💻 For Developers (Building from source)
