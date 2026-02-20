@@ -42,6 +42,33 @@ async fn ensure_ollama(app: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 async fn list_models() -> Result<Vec<ModelInfo>, String> {
+    // Wait for Ollama to be ready (it starts in background on app launch)
+    let url = format!("{}/api/tags", ollama::get_ollama_url());
+    let client = reqwest::Client::new();
+    let mut ready = false;
+
+    for i in 0..30 {
+        match client.get(&url).send().await {
+            Ok(r) if r.status().is_success() => {
+                if i > 0 {
+                    eprintln!("[openworld] list_models: Ollama became ready after {:.1}s", (i as f64) * 0.5);
+                }
+                ready = true;
+                break;
+            }
+            _ => {
+                if i == 0 {
+                    eprintln!("[openworld] list_models: Ollama not ready yet, waiting...");
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            }
+        }
+    }
+
+    if !ready {
+        return Err("AI engine is still starting. Please try again in a moment.".to_string());
+    }
+
     ollama::list_installed_models().await
 }
 

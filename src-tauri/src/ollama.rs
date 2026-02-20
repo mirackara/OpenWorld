@@ -68,7 +68,7 @@ lazy_static::lazy_static! {
     static ref OLLAMA_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 }
 
-fn get_ollama_url() -> String {
+pub fn get_ollama_url() -> String {
     let config = load_config();
     config.ollama_host
 }
