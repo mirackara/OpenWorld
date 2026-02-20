@@ -91,9 +91,13 @@ fn get_ollama_bin_path() -> PathBuf {
 
 /// Search for Ollama binary in common locations + PATH
 fn find_ollama_binary() -> Option<String> {
+    eprintln!("[openworld] Searching for Ollama binary...");
+
     // 1. Check our bundled copy
     let bundled = get_ollama_bin_path();
+    eprintln!("[openworld]   Checking bundled path: {}", bundled.display());
     if bundled.exists() {
+        eprintln!("[openworld]   ✓ Found bundled binary");
         return Some(bundled.to_string_lossy().to_string());
     }
 
@@ -104,21 +108,30 @@ fn find_ollama_binary() -> Option<String> {
         "/usr/bin/ollama",
     ];
     for path in &common_paths {
+        eprintln!("[openworld]   Checking: {}", path);
         if std::path::Path::new(path).exists() {
+            eprintln!("[openworld]   ✓ Found at {}", path);
             return Some(path.to_string());
         }
     }
 
     // 3. Check PATH via `which`
-    if let Ok(output) = Command::new("which").arg("ollama").output() {
-        if output.status.success() {
+    eprintln!("[openworld]   Checking PATH via `which ollama`...");
+    match Command::new("which").arg("ollama").output() {
+        Ok(output) => {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() && std::path::Path::new(&path).exists() {
+            eprintln!("[openworld]   `which` returned: '{}' (status: {})", path, output.status);
+            if output.status.success() && !path.is_empty() && std::path::Path::new(&path).exists() {
+                eprintln!("[openworld]   ✓ Found via PATH");
                 return Some(path);
             }
         }
+        Err(e) => {
+            eprintln!("[openworld]   `which` failed: {}", e);
+        }
     }
 
+    eprintln!("[openworld]   ✗ Ollama binary not found anywhere");
     None
 }
 
@@ -146,19 +159,24 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
     emit_status(app, "downloading", "Downloading AI engine...", Some(0.0));
 
     let url = get_download_url()?;
+    eprintln!("[openworld] Downloading Ollama from: {}", url);
+
     let client = Client::builder()
-        .timeout(std::time::Duration::from_secs(600)) // 10 min timeout for large download
+        .timeout(std::time::Duration::from_secs(600))
         .build()
-        .map_err(|e| format!("HTTP client error: {}", e))?;
+        .map_err(|e| { eprintln!("[openworld] HTTP client error: {}", e); format!("HTTP client error: {}", e) })?;
 
     let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("Download request failed: {}", e))?;
+        .map_err(|e| { eprintln!("[openworld] Download request failed: {}", e); format!("Download request failed: {}", e) })?;
 
+    eprintln!("[openworld] Download response: HTTP {}", resp.status());
     if !resp.status().is_success() {
-        return Err(format!("Download failed with HTTP {}", resp.status()));
+        let msg = format!("Download failed with HTTP {}", resp.status());
+        eprintln!("[openworld] {}", msg);
+        return Err(msg);
     }
 
     let total_size = resp.content_length().unwrap_or(0);
@@ -210,22 +228,28 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
 
 /// Start `ollama serve` as a background process
 fn start_ollama_server(binary_path: &str) -> Result<(), String> {
+    eprintln!("[openworld] Starting Ollama server: {} serve", binary_path);
     let mut proc_guard = OLLAMA_PROCESS.lock().map_err(|e| e.to_string())?;
 
     // Already running?
     if let Some(ref mut child) = *proc_guard {
         if let Ok(None) = child.try_wait() {
+            eprintln!("[openworld] Ollama process already running (pid exists)");
             return Ok(());
         }
     }
 
     let child = Command::new(binary_path)
         .arg("serve")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stdout(Stdio::inherit())  // Show Ollama output in terminal
+        .stderr(Stdio::inherit())  // Show Ollama errors in terminal
         .spawn()
-        .map_err(|e| format!("Failed to start Ollama: {}", e))?;
+        .map_err(|e| {
+            eprintln!("[openworld] ✗ Failed to spawn Ollama: {}", e);
+            format!("Failed to start Ollama: {}", e)
+        })?;
 
+    eprintln!("[openworld] ✓ Ollama process spawned (pid: {})", child.id());
     *proc_guard = Some(child);
     Ok(())
 }
@@ -233,15 +257,25 @@ fn start_ollama_server(binary_path: &str) -> Result<(), String> {
 /// Poll Ollama's API until it responds
 async fn wait_for_ready(max_seconds: u32) -> bool {
     let url = format!("{}/api/tags", get_ollama_url());
+    eprintln!("[openworld] Waiting up to {}s for Ollama at {}...", max_seconds, url);
     let client = Client::new();
     let attempts = max_seconds * 2; // poll every 500ms
 
-    for _ in 0..attempts {
-        if client.get(&url).send().await.is_ok() {
-            return true;
+    for i in 0..attempts {
+        match client.get(&url).send().await {
+            Ok(resp) => {
+                eprintln!("[openworld] ✓ Ollama responded (HTTP {}) after {}ms", resp.status(), i * 500);
+                return true;
+            }
+            Err(e) => {
+                if i % 4 == 0 { // Log every 2 seconds
+                    eprintln!("[openworld]   ...still waiting ({:.1}s): {}", (i * 500) as f64 / 1000.0, e);
+                }
+            }
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
+    eprintln!("[openworld] ✗ Ollama did not respond after {}s", max_seconds);
     false
 }
 
@@ -261,25 +295,38 @@ fn emit_status(app: &AppHandle, stage: &str, message: &str, progress: Option<f64
 /// Ensure Ollama is installed, running, and ready.
 /// Handles: check running → find binary → download if needed → start → health-check.
 pub async fn ensure_ollama_ready(app: AppHandle) -> Result<(), String> {
-    // Step 1: Maybe it's already running (user installed Ollama themselves)
+    eprintln!("[openworld] ═══════════════════════════════════════");
+    eprintln!("[openworld] ensure_ollama_ready: starting");
+    eprintln!("[openworld] ═══════════════════════════════════════");
+
+    // Step 1: Maybe it's already running
+    eprintln!("[openworld] Step 1: Check if Ollama is already running...");
     emit_status(&app, "checking", "Checking AI engine...", None);
 
     if wait_for_ready(3).await {
+        eprintln!("[openworld] ✓ Ollama already running!");
         emit_status(&app, "ready", "AI engine ready!", None);
         return Ok(());
     }
+    eprintln!("[openworld] Ollama not running, need to find/download and start it");
 
-    // Step 2: Find binary (bundled or system-installed)
+    // Step 2: Find binary
+    eprintln!("[openworld] Step 2: Find Ollama binary...");
     let binary_path = match find_ollama_binary() {
         Some(path) => {
+            eprintln!("[openworld] ✓ Found binary at: {}", path);
             emit_status(&app, "starting", "Found AI engine, starting...", None);
             path
         }
         None => {
-            // Need to download it
+            eprintln!("[openworld] Binary not found, downloading...");
             match download_ollama(&app).await {
-                Ok(path) => path,
+                Ok(path) => {
+                    eprintln!("[openworld] ✓ Downloaded to: {}", path);
+                    path
+                }
                 Err(e) => {
+                    eprintln!("[openworld] ✗ Download failed: {}", e);
                     emit_status(&app, "error", &format!("Download failed: {}", e), None);
                     return Err(e);
                 }
@@ -288,19 +335,24 @@ pub async fn ensure_ollama_ready(app: AppHandle) -> Result<(), String> {
     };
 
     // Step 3: Start the server
+    eprintln!("[openworld] Step 3: Start Ollama server...");
     emit_status(&app, "starting", "Starting AI engine...", None);
     if let Err(e) = start_ollama_server(&binary_path) {
+        eprintln!("[openworld] ✗ Start failed: {}", e);
         emit_status(&app, "error", &format!("Failed to start: {}", e), None);
         return Err(e);
     }
 
-    // Step 4: Wait for it to become responsive (up to 30 seconds)
+    // Step 4: Wait for it to become responsive
+    eprintln!("[openworld] Step 4: Wait for Ollama to be responsive...");
     emit_status(&app, "starting", "Waiting for AI engine to be ready...", None);
     if wait_for_ready(30).await {
+        eprintln!("[openworld] ✓ Ollama is ready!");
         emit_status(&app, "ready", "AI engine ready!", None);
         Ok(())
     } else {
-        let msg = "AI engine is taking too long to start. Please restart the app.".to_string();
+        let msg = "AI engine timed out after 30s. Check terminal for details.".to_string();
+        eprintln!("[openworld] ✗ {}", msg);
         emit_status(&app, "error", &msg, None);
         Err(msg)
     }
