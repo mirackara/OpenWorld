@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -20,47 +20,54 @@ export default function SetupWizard() {
     const [downloadStatus, setDownloadStatus] = useState('');
     const [prepareMessage, setPrepareMessage] = useState('Setting things up...');
     const [prepareProgress, setPrepareProgress] = useState<number | null>(null);
+    const [prepareError, setPrepareError] = useState(false);
     const { systemRAM } = useModelStore();
     const { setSetupComplete, setDefaultModel } = useSettingsStore();
 
-    async function handleGetStarted() {
+    async function startOllamaSetup() {
+        setPrepareError(false);
+        setPrepareMessage('Checking AI engine...');
+        setPrepareProgress(null);
         setStep('preparing');
 
-        // Listen for setup status events
         const unlisten = await listen<OllamaStatus>('ollama-setup-status', (event) => {
             const { stage, message, progress } = event.payload;
             setPrepareMessage(message);
             setPrepareProgress(progress);
 
             if (stage === 'ready') {
-                setTimeout(() => setStep('pick-model'), 500);
+                // Ollama confirmed ready — safe to pick a model
+                setTimeout(() => setStep('pick-model'), 600);
+            } else if (stage === 'error') {
+                setPrepareError(true);
             }
         });
 
         try {
             await invoke('ensure_ollama');
-            // If no events fired, just move on
-            setTimeout(() => {
-                if (step === 'preparing') {
-                    setStep('pick-model');
-                }
-            }, 1000);
+            // If command succeeds but we haven't moved yet, move now
+            // (edge case: ready event might not have fired yet)
+            unlisten();
+            // Double-check readiness and advance
+            const running = await invoke<boolean>('check_ollama');
+            if (running) {
+                setStep('pick-model');
+            }
         } catch (err) {
             console.error('Ollama setup failed:', err);
-            setPrepareMessage('Something went wrong. Please restart the app and try again.');
-        } finally {
+            setPrepareError(true);
+            setPrepareMessage(String(err));
             unlisten();
         }
     }
 
-    // Auto-advance from preparing to pick-model
-    useEffect(() => {
-        if (step === 'preparing') {
-            // Safety timeout — if somehow events don't fire, advance after 30s
-            const timeout = setTimeout(() => setStep('pick-model'), 30000);
-            return () => clearTimeout(timeout);
-        }
-    }, [step]);
+    function handleGetStarted() {
+        startOllamaSetup();
+    }
+
+    function handleRetry() {
+        startOllamaSetup();
+    }
 
     async function handleModelSelect(model: ModelCatalogEntry) {
         setSelectedModel(model);
@@ -88,7 +95,7 @@ export default function SetupWizard() {
             setStep('ready');
         } catch (err) {
             console.error('Download failed:', err);
-            setDownloadStatus(`Download failed: ${err}`);
+            setDownloadStatus(`Download failed. Please check your internet connection and try again.`);
         } finally {
             unlisten();
         }
@@ -141,15 +148,34 @@ export default function SetupWizard() {
 
                 {step === 'preparing' && (
                     <div className="setup-step">
-                        <div className="download-animation">
-                            <div className="download-spinner" />
-                        </div>
-                        <h2 className="setup-step-title">Getting everything ready</h2>
-                        <p className="setup-step-subtitle">{prepareMessage}</p>
-                        {prepareProgress !== null && (
-                            <div className="progress-bar" style={{ maxWidth: 400, margin: '0 auto' }}>
-                                <div className="progress-fill" style={{ width: `${prepareProgress * 100}%` }} />
-                            </div>
+                        {!prepareError ? (
+                            <>
+                                <div className="download-animation">
+                                    <div className="download-spinner" />
+                                </div>
+                                <h2 className="setup-step-title">Getting everything ready</h2>
+                                <p className="setup-step-subtitle">{prepareMessage}</p>
+                                {prepareProgress !== null && (
+                                    <div className="progress-bar" style={{ maxWidth: 400, margin: '0 auto' }}>
+                                        <div className="progress-fill" style={{ width: `${prepareProgress * 100}%` }} />
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <div className="setup-logo">
+                                    <div className="logo-orb error">
+                                        <span className="logo-icon">!</span>
+                                    </div>
+                                </div>
+                                <h2 className="setup-step-title">Couldn't start the AI engine</h2>
+                                <p className="setup-step-subtitle">
+                                    This usually means the download was interrupted or the engine couldn't start.
+                                </p>
+                                <button className="btn btn-primary btn-lg setup-cta" onClick={handleRetry}>
+                                    Try again
+                                </button>
+                            </>
                         )}
                     </div>
                 )}

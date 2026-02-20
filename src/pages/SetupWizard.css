@@ -44,6 +44,12 @@
     animation: none;
 }
 
+.logo-orb.error {
+    background: linear-gradient(135deg, #ef4444, #f87171);
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+    animation: none;
+}
+
 .logo-icon {
     font-size: 36px;
 }
