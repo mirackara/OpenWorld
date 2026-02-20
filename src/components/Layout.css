@@ -151,4 +151,20 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    position: relative;
+}
+
+.sidebar-expand-btn {
+    position: absolute;
+    top: var(--space-md);
+    left: var(--space-md);
+    z-index: 50;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.sidebar-expand-btn:hover {
+    background: var(--bg-hover);
 }

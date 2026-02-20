@@ -3,9 +3,8 @@
 .models-page {
     height: 100%;
     overflow-y: auto;
-    padding: var(--space-2xl);
-    max-width: 900px;
-    margin: 0 auto;
+    padding: var(--space-xl) var(--space-2xl);
+    max-width: 1200px;
 }
 
 .models-header {
