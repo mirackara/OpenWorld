@@ -135,31 +135,34 @@ fn find_ollama_binary() -> Option<String> {
     None
 }
 
-/// Get the download URL for the current platform
-fn get_download_url() -> Result<String, String> {
+/// Get the GitHub release download URL and whether it needs extraction
+fn get_download_info() -> Result<(String, bool), String> {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
 
+    // Use latest release redirect from GitHub
     match (os, arch) {
         ("macos", "aarch64") | ("macos", "x86_64") => {
-            Ok("https://ollama.com/download/ollama-darwin".to_string())
+            // macOS: .tgz archive containing the ollama binary
+            Ok(("https://github.com/ollama/ollama/releases/latest/download/ollama-darwin.tgz".to_string(), true))
         }
         ("linux", "x86_64") => {
-            Ok("https://ollama.com/download/ollama-linux-amd64".to_string())
+            Ok(("https://github.com/ollama/ollama/releases/latest/download/ollama-linux-amd64.tar.zst".to_string(), true))
         }
         ("linux", "aarch64") => {
-            Ok("https://ollama.com/download/ollama-linux-arm64".to_string())
+            Ok(("https://github.com/ollama/ollama/releases/latest/download/ollama-linux-arm64.tar.zst".to_string(), true))
         }
         _ => Err(format!("Unsupported platform: {}-{}", os, arch)),
     }
 }
 
-/// Download the Ollama binary
+/// Download the Ollama binary from GitHub releases
 async fn download_ollama(app: &AppHandle) -> Result<String, String> {
     emit_status(app, "downloading", "Downloading AI engine...", Some(0.0));
 
-    let url = get_download_url()?;
+    let (url, needs_extract) = get_download_info()?;
     eprintln!("[openworld] Downloading Ollama from: {}", url);
+    eprintln!("[openworld] Needs extraction: {}", needs_extract);
 
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(600))
@@ -172,7 +175,7 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
         .await
         .map_err(|e| { eprintln!("[openworld] Download request failed: {}", e); format!("Download request failed: {}", e) })?;
 
-    eprintln!("[openworld] Download response: HTTP {}", resp.status());
+    eprintln!("[openworld] Download response: HTTP {} (final URL after redirects)", resp.status());
     if !resp.status().is_success() {
         let msg = format!("Download failed with HTTP {}", resp.status());
         eprintln!("[openworld] {}", msg);
@@ -180,9 +183,17 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
     }
 
     let total_size = resp.content_length().unwrap_or(0);
-    let bin_path = get_ollama_bin_path();
+    eprintln!("[openworld] Download size: {} bytes ({:.1} MB)", total_size, total_size as f64 / 1_048_576.0);
 
-    let mut file = std::fs::File::create(&bin_path)
+    // Save to a temp file (archive or binary)
+    let bin_dir = get_ollama_bin_dir();
+    let download_path = if needs_extract {
+        bin_dir.join("ollama-download.tgz")
+    } else {
+        get_ollama_bin_path()
+    };
+
+    let mut file = std::fs::File::create(&download_path)
         .map_err(|e| format!("Failed to create file: {}", e))?;
 
     let mut downloaded: u64 = 0;
@@ -208,7 +219,67 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
         }
     }
 
-    drop(file); // Close file before chmod
+    drop(file);
+    eprintln!("[openworld] Downloaded {} bytes to {}", downloaded, download_path.display());
+
+    // Integrity check: file must be > 1MB (a real binary/archive is ~70MB)
+    let file_size = std::fs::metadata(&download_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    if file_size < 1_000_000 {
+        // Probably an error page, not a real binary
+        let content = std::fs::read_to_string(&download_path).unwrap_or_default();
+        let preview = content.chars().take(200).collect::<String>();
+        eprintln!("[openworld] ✗ Downloaded file too small ({} bytes). Content preview: {}", file_size, preview);
+        let _ = std::fs::remove_file(&download_path);
+        return Err(format!("Download corrupted: got {} bytes instead of expected ~70MB", file_size));
+    }
+
+    // Extract if needed (macOS .tgz)
+    let bin_path = get_ollama_bin_path();
+    if needs_extract {
+        eprintln!("[openworld] Extracting archive...");
+        emit_status(app, "downloading", "Extracting AI engine...", Some(0.95));
+
+        let output = Command::new("tar")
+            .args(["xzf", &download_path.to_string_lossy(), "-C", &bin_dir.to_string_lossy()])
+            .output()
+            .map_err(|e| format!("Failed to extract: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("[openworld] ✗ tar extraction failed: {}", stderr);
+            return Err(format!("Extraction failed: {}", stderr));
+        }
+
+        // Clean up the archive
+        let _ = std::fs::remove_file(&download_path);
+
+        // The tgz contains 'ollama' binary at the top level (or in a bin/ subfolder)
+        // Check both possibilities
+        if !bin_path.exists() {
+            // Maybe it extracted to a subfolder like bin/ollama
+            let alt_path = bin_dir.join("bin").join("ollama");
+            if alt_path.exists() {
+                std::fs::rename(&alt_path, &bin_path)
+                    .map_err(|e| format!("Failed to move binary: {}", e))?;
+                let _ = std::fs::remove_dir_all(bin_dir.join("bin"));
+            }
+        }
+
+        if !bin_path.exists() {
+            // List what was actually extracted
+            if let Ok(entries) = std::fs::read_dir(&bin_dir) {
+                eprintln!("[openworld] Files in bin dir after extraction:");
+                for entry in entries.flatten() {
+                    eprintln!("[openworld]   {}", entry.path().display());
+                }
+            }
+            return Err("Extraction succeeded but Ollama binary not found in archive".to_string());
+        }
+
+        eprintln!("[openworld] ✓ Extracted binary to: {}", bin_path.display());
+    }
 
     // Make executable on Unix
     #[cfg(unix)]
@@ -220,6 +291,19 @@ async fn download_ollama(app: &AppHandle) -> Result<String, String> {
         perms.set_mode(0o755);
         std::fs::set_permissions(&bin_path, perms)
             .map_err(|e| format!("Permission error: {}", e))?;
+    }
+
+    // Validate the binary actually runs
+    eprintln!("[openworld] Validating binary...");
+    match Command::new(&bin_path).arg("--version").output() {
+        Ok(output) => {
+            let version = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[openworld] ✓ Binary valid: {}", version.trim());
+        }
+        Err(e) => {
+            eprintln!("[openworld] ✗ Binary validation failed: {}", e);
+            return Err(format!("Downloaded binary is not executable: {}", e));
+        }
     }
 
     emit_status(app, "downloading", "Download complete!", Some(1.0));
