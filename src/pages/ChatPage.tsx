@@ -137,7 +137,12 @@ export default function ChatPage() {
                 model: defaultModel,
             });
 
-            // Add assistant message to local state
+            // IMPORTANT: Clear streaming state BEFORE adding the final message
+            // to prevent both the streaming bubble and message bubble showing simultaneously
+            clearStreamingContent();
+            setIsStreaming(false);
+
+            // Now add assistant message to local state
             const assistantMsg: Message = {
                 id: crypto.randomUUID(),
                 conversation_id: convId!,
@@ -146,9 +151,9 @@ export default function ChatPage() {
                 timestamp: new Date().toISOString(),
             };
             addMessage(assistantMsg);
-            clearStreamingContent();
         } catch (err) {
             console.error('Failed to send message:', err);
+            clearStreamingContent();
             setIsStreaming(false);
         }
     }

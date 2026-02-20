@@ -54,6 +54,11 @@ impl StorageEngine {
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
             );
+            CREATE TABLE IF NOT EXISTS memories (
+                id TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             PRAGMA foreign_keys = ON;",
         )
         .map_err(|e| format!("Failed to create tables: {}", e))?;
@@ -196,5 +201,61 @@ impl StorageEngine {
             .collect();
 
         Ok(messages)
+    }
+
+    // ── Memory System ────────────────────────────────────────────────────
+
+    pub fn add_memory(&self, content: &str) -> Result<String, String> {
+        let id = Uuid::new_v4().to_string();
+        let now: DateTime<Utc> = Utc::now();
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "INSERT INTO memories (id, content, created_at) VALUES (?1, ?2, ?3)",
+            params![id, content, now.to_rfc3339()],
+        )
+        .map_err(|e| format!("Failed to add memory: {}", e))?;
+        Ok(id)
+    }
+
+    pub fn list_memories(&self) -> Result<Vec<(String, String, String)>, String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT id, content, created_at FROM memories ORDER BY created_at ASC")
+            .map_err(|e| format!("Failed to prepare: {}", e))?;
+
+        let memories = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|e| format!("Failed to query memories: {}", e))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        Ok(memories)
+    }
+
+    pub fn delete_memory(&self, id: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM memories WHERE id = ?1", params![id])
+            .map_err(|e| format!("Failed to delete memory: {}", e))?;
+        Ok(())
+    }
+
+    /// Build a context string from all stored memories for injection into system prompt
+    pub fn get_memory_context(&self) -> Result<String, String> {
+        let memories = self.list_memories()?;
+        if memories.is_empty() {
+            return Ok(String::new());
+        }
+
+        let mut context = String::from("The following are things you remember about the user from previous conversations. Use this information naturally — don't repeat it back unless relevant:\n");
+        for (_id, content, _created_at) in &memories {
+            context.push_str(&format!("- {}\n", content));
+        }
+        Ok(context)
     }
 }

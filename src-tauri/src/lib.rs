@@ -7,6 +7,7 @@ mod storage;
 use chat::ChatMessage;
 use config::AppConfig;
 use ollama::ModelInfo;
+use serde::{Deserialize, Serialize};
 use storage::{Conversation, Message, StorageEngine};
 use std::sync::Mutex;
 use tauri::State;
@@ -64,9 +65,15 @@ async fn send_message(
     messages: Vec<ChatMessage>,
     model: String,
 ) -> Result<String, String> {
-    // Send to Ollama and stream response
+    // Read memory context to inject into the conversation
+    let memory_context = {
+        let app_state = state.lock().map_err(|e| e.to_string())?;
+        app_state.storage.get_memory_context().unwrap_or_default()
+    };
+
+    // Send to Ollama and stream response (memory context is passed for system prompt injection)
     let full_response =
-        chat::send_chat_message(app, conversation_id.clone(), messages, model).await?;
+        chat::send_chat_message(app, conversation_id.clone(), messages, model, memory_context).await?;
 
     // Save the assistant response to storage
     let app_state = state.lock().map_err(|e| e.to_string())?;
@@ -135,12 +142,52 @@ fn get_messages(
 
 #[tauri::command]
 fn get_system_memory() -> Result<u64, String> {
-    // Returns total system RAM in bytes
-    // For now return a default; in production use sysinfo crate
     Ok(16 * 1024 * 1024 * 1024) // default 16GB
 }
 
-// ── App Setup ────────────────────────────────────────────────────────────
+// ── Memory Commands ─────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MemoryItem {
+    id: String,
+    content: String,
+    created_at: String,
+}
+
+#[tauri::command]
+fn add_memory_cmd(
+    state: State<'_, Mutex<AppState>>,
+    content: String,
+) -> Result<String, String> {
+    let app_state = state.lock().map_err(|e| e.to_string())?;
+    app_state.storage.add_memory(&content)
+}
+
+#[tauri::command]
+fn list_memories_cmd(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<Vec<MemoryItem>, String> {
+    let app_state = state.lock().map_err(|e| e.to_string())?;
+    let raw = app_state.storage.list_memories()?;
+    Ok(raw.into_iter().map(|(id, content, created_at)| MemoryItem { id, content, created_at }).collect())
+}
+
+#[tauri::command]
+fn delete_memory_cmd(
+    state: State<'_, Mutex<AppState>>,
+    id: String,
+) -> Result<(), String> {
+    let app_state = state.lock().map_err(|e| e.to_string())?;
+    app_state.storage.delete_memory(&id)
+}
+
+#[tauri::command]
+fn get_memory_context_cmd(
+    state: State<'_, Mutex<AppState>>,
+) -> Result<String, String> {
+    let app_state = state.lock().map_err(|e| e.to_string())?;
+    app_state.storage.get_memory_context()
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -166,6 +213,10 @@ pub fn run() {
             add_message,
             get_messages,
             get_system_memory,
+            add_memory_cmd,
+            list_memories_cmd,
+            delete_memory_cmd,
+            get_memory_context_cmd,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

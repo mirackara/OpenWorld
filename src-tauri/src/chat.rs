@@ -33,17 +33,27 @@ pub async fn send_chat_message(
     conversation_id: String,
     messages: Vec<ChatMessage>,
     model: String,
+    memory_context: String,
 ) -> Result<String, String> {
     let config = load_config();
     let url = format!("{}/api/chat", config.ollama_host);
     let client = Client::new();
 
+    // Build system prompt: memory context + user's custom system prompt
+    let mut system_parts = Vec::new();
+    if !memory_context.is_empty() {
+        system_parts.push(memory_context);
+    }
+    if !config.system_prompt.is_empty() {
+        system_parts.push(config.system_prompt.clone());
+    }
+
     // Build message history including system prompt
     let mut ollama_messages = Vec::new();
-    if !config.system_prompt.is_empty() {
+    if !system_parts.is_empty() {
         ollama_messages.push(serde_json::json!({
             "role": "system",
-            "content": config.system_prompt
+            "content": system_parts.join("\n\n")
         }));
     }
     for msg in &messages {
