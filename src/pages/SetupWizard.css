@@ -141,8 +141,10 @@
     margin-bottom: var(--space-sm);
 }
 
-.model-emoji {
-    font-size: 24px;
+.model-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .model-name {

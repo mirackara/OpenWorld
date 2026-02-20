@@ -117,8 +117,12 @@ export default function ModelsPage() {
                             return (
                                 <div key={model.name} className="card installed-card">
                                     <div className="installed-header">
-                                        <span className="installed-emoji">
-                                            {catalogEntry?.emoji || '🤖'}
+                                        <span className="installed-icon">
+                                            {catalogEntry ? (
+                                                <img src={catalogEntry.icon} alt={catalogEntry.friendlyName} width="24" height="24" />
+                                            ) : (
+                                                '🤖'
+                                            )}
                                         </span>
                                         <div className="installed-info">
                                             <span className="installed-name">
@@ -182,7 +186,9 @@ export default function ModelsPage() {
                         return (
                             <div key={model.id} className={`card model-catalog-card ${installed ? 'installed' : ''}`}>
                                 <div className="catalog-header">
-                                    <span className="catalog-emoji">{model.emoji}</span>
+                                    <span className="catalog-icon">
+                                        <img src={model.icon} alt={model.friendlyName} width="32" height="32" />
+                                    </span>
                                     <div className="catalog-info">
                                         <span className="catalog-name">{model.friendlyName}</span>
                                         <span className="catalog-best-for">{model.bestFor}</span>

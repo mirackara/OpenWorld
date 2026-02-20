@@ -52,8 +52,10 @@
     gap: var(--space-md);
 }
 
-.installed-emoji {
-    font-size: 28px;
+.installed-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .installed-info {
@@ -116,8 +118,10 @@
     gap: var(--space-sm);
 }
 
-.catalog-emoji {
-    font-size: 28px;
+.catalog-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .catalog-info {

@@ -197,7 +197,9 @@ export default function SetupWizard() {
                                         onClick={() => handleModelSelect(model)}
                                     >
                                         <div className="model-card-header">
-                                            <span className="model-emoji">{model.emoji}</span>
+                                            <span className="model-icon">
+                                                <img src={model.icon} alt={model.friendlyName} width="24" height="24" />
+                                            </span>
                                             <span className="model-name">{model.friendlyName}</span>
                                             {selectedModel?.id === model.id && (
                                                 <svg className="model-check" width="20" height="20" viewBox="0 0 24 24" fill="var(--accent)" stroke="none">
@@ -236,7 +238,7 @@ export default function SetupWizard() {
                             <div className="download-spinner" />
                         </div>
                         <h2 className="setup-step-title">
-                            Downloading {selectedModel?.emoji} {selectedModel?.friendlyName}
+                            Downloading {selectedModel?.friendlyName}
                         </h2>
                         <p className="setup-step-subtitle">{downloadStatus}</p>
                         <div className="progress-bar" style={{ maxWidth: 400, margin: '0 auto' }}>
@@ -255,7 +257,7 @@ export default function SetupWizard() {
                         </div>
                         <h2 className="setup-step-title">You're all set!</h2>
                         <p className="setup-step-subtitle">
-                            {selectedModel?.emoji} {selectedModel?.friendlyName} is ready to chat.
+                            {selectedModel?.friendlyName} is ready to chat.
                         </p>
                         <button className="btn btn-primary btn-lg setup-cta" onClick={handleFinish}>
                             Start chatting

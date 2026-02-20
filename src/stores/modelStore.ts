@@ -16,18 +16,23 @@ export interface ModelInfo {
 export interface ModelCatalogEntry {
     id: string;
     friendlyName: string;
-    emoji: string;
+    icon: string;
     description: string;
     bestFor: string;
     sizeGB: number;
     ramRequired: number; // in GB
 }
 
+import LlamaIcon from '../assets/models/llama.svg';
+import MistralIcon from '../assets/models/mistral.svg';
+import GemmaIcon from '../assets/models/gemma.svg';
+import PhiIcon from '../assets/models/phi.svg';
+
 export const MODEL_CATALOG: ModelCatalogEntry[] = [
     {
         id: 'llama3:8b',
         friendlyName: 'Llama 3',
-        emoji: '🚀',
+        icon: LlamaIcon,
         description: 'Fast, well-rounded, and great at everyday tasks',
         bestFor: 'General chat, writing, Q&A',
         sizeGB: 4.7,
@@ -36,7 +41,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     {
         id: 'mistral:7b',
         friendlyName: 'Mistral',
-        emoji: '🧠',
+        icon: MistralIcon,
         description: 'Compact but surprisingly smart',
         bestFor: 'Quick answers, coding help',
         sizeGB: 4.1,
@@ -45,7 +50,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     {
         id: 'gemma2:9b',
         friendlyName: 'Gemma 2',
-        emoji: '✨',
+        icon: GemmaIcon,
         description: "Google's lightweight model with strong reasoning",
         bestFor: 'Analysis, research',
         sizeGB: 5.4,
@@ -54,7 +59,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     {
         id: 'phi3:mini',
         friendlyName: 'Phi-3 Mini',
-        emoji: '⚡',
+        icon: PhiIcon,
         description: 'Tiny but capable — runs on almost anything',
         bestFor: 'Low-spec machines',
         sizeGB: 2.3,
@@ -63,7 +68,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     {
         id: 'llama3:70b',
         friendlyName: 'Llama 3 70B',
-        emoji: '🏋️',
+        icon: LlamaIcon,
         description: 'The heavy hitter — closest to GPT-4 quality',
         bestFor: 'Complex reasoning, long documents',
         sizeGB: 40,
@@ -101,7 +106,7 @@ export const useModelStore = create<ModelState>((set) => ({
 
 export function getFriendlyModelName(modelId: string): string {
     const entry = MODEL_CATALOG.find((m) => m.id === modelId);
-    if (entry) return `${entry.emoji} ${entry.friendlyName}`;
+    if (entry) return entry.friendlyName;
     // For models not in catalog, clean up the ID
     const name = modelId.split(':')[0];
     return name.charAt(0).toUpperCase() + name.slice(1);
