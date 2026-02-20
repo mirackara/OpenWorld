@@ -116,6 +116,17 @@ impl StorageEngine {
         Ok(convos)
     }
 
+    pub fn update_conversation_title(&self, id: &str, title: &str) -> Result<(), String> {
+        let conn = self.conn.lock().map_err(|e| e.to_string())?;
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE conversations SET title = ?1, updated_at = ?2 WHERE id = ?3",
+            params![title, now, id],
+        )
+        .map_err(|e| format!("Failed to update conversation title: {}", e))?;
+        Ok(())
+    }
+
     pub fn delete_conversation(&self, id: &str) -> Result<(), String> {
         let conn = self.conn.lock().map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM messages WHERE conversation_id = ?1", params![id])
@@ -125,16 +136,6 @@ impl StorageEngine {
         Ok(())
     }
 
-    pub fn update_conversation_title(&self, id: &str, title: &str) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| e.to_string())?;
-        let now: DateTime<Utc> = Utc::now();
-        conn.execute(
-            "UPDATE conversations SET title = ?1, updated_at = ?2 WHERE id = ?3",
-            params![title, now.to_rfc3339(), id],
-        )
-        .map_err(|e| format!("Failed to update conversation: {}", e))?;
-        Ok(())
-    }
 
     pub fn add_message(
         &self,

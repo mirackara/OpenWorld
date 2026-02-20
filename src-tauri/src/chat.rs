@@ -232,3 +232,65 @@ Conversation:
 
     Ok(facts)
 }
+
+/// Automatically generate a short, concise conversation title based on the first prompt
+pub async fn generate_conversation_title(
+    messages: &[ChatMessage],
+    model: &str,
+) -> Result<String, String> {
+    let config = load_config();
+    let url = format!("{}/api/chat", config.ollama_host);
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+
+    let mut excerpt = String::new();
+    // Use up to the first two messages to generate the title
+    for msg in messages.iter().take(2) {
+        let label = if msg.role == "user" { "User" } else { "Assistant" };
+        excerpt.push_str(&format!("{}: {}\n", label, msg.content));
+    }
+
+    let system_prompt = "You are a title generator. Create a very short, concise title (max 5 words) summarizing the core subject of the conversation below. Do not use quotes or punctuation. Be direct (e.g., \"Buying an OLED TV\", \"Rust Memory Management\").";
+
+    let ollama_messages = vec![
+        serde_json::json!({"role": "system", "content": system_prompt}),
+        serde_json::json!({"role": "user", "content": format!("Conversation excerpt:\n{}", excerpt)}),
+    ];
+
+    #[derive(serde::Deserialize)]
+    struct OllamaResponse {
+        message: Option<MessageObj>,
+    }
+    #[derive(serde::Deserialize)]
+    struct MessageObj {
+        content: Option<String>,
+    }
+
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": ollama_messages,
+            "stream": false,
+            "options": {
+                "temperature": 0.2
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Title request failed: {}", e))?;
+
+    let response_data: OllamaResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse title response: {}", e))?;
+
+    let title = response_data
+        .message
+        .and_then(|m| m.content)
+        .unwrap_or_else(|| "New Conversation".to_string());
+
+    Ok(title.trim().trim_matches('"').to_string())
+}

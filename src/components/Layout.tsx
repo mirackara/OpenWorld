@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useChatStore, Conversation } from '../stores/chatStore';
 import { getFriendlyModelName } from '../stores/modelStore';
 import './Layout.css';
@@ -19,6 +20,18 @@ export default function Layout() {
 
     useEffect(() => {
         loadConversations();
+
+        let unlisten: () => void;
+        listen('conversation-title-updated', () => {
+            console.log('[openworld] Conversation title updated, reloading sidebar...');
+            loadConversations();
+        }).then((f) => {
+            unlisten = f;
+        });
+
+        return () => {
+            if (unlisten) unlisten();
+        };
     }, []);
 
     async function loadConversations() {

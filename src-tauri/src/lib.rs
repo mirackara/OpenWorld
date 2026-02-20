@@ -10,7 +10,7 @@ use ollama::ModelInfo;
 use serde::{Deserialize, Serialize};
 use storage::{Conversation, Message, StorageEngine};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use tauri::State;
 
 pub struct AppState {
@@ -134,6 +134,20 @@ async fn send_message(
             role: "assistant".to_string(),
             content: response_for_extraction,
         });
+
+        // Generate dynamic title if this is the first exchange
+        if all_msgs.len() <= 2 {
+            eprintln!("[openworld] Generating dynamic title...");
+            if let Ok(title) = chat::generate_conversation_title(&all_msgs, &model_for_extraction).await {
+                eprintln!("[openworld] New title: {}", title);
+                let managed_state = app_for_extraction.state::<Mutex<AppState>>();
+                if let Ok(app_state) = managed_state.lock() {
+                    let _ = app_state.storage.update_conversation_title(&conversation_id, &title);
+                }
+                // Tell the frontend to refresh the conversation list
+                let _ = app_for_extraction.emit("conversation-title-updated", ());
+            }
+        }
 
         eprintln!("[openworld] Starting background fact extraction...");
         match chat::extract_facts_from_conversation(&all_msgs, &model_for_extraction, &existing_memories).await {
