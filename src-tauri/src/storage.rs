@@ -252,7 +252,7 @@ impl StorageEngine {
             return Ok(String::new());
         }
 
-        let mut context = String::from("The following are things you remember about the user from previous conversations. Use this information naturally — don't repeat it back unless relevant:\n");
+        let mut context = String::from("The following are long-term facts you know about the user. CRITICAL INSTRUCTION: You must strictly USE these facts to inform your answers, but NEVER arbitrarily mention them. Do not start responses with \"I know you are a...\" or \"Since you like...\". Only reference these facts if the user EXPLICITLY asks you about them or if they seamlessly resolve an ambiguity in the user's prompt:\n");
         for (_id, content, _created_at) in &memories {
             context.push_str(&format!("- {}\n", content));
         }

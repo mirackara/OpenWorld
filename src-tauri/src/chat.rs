@@ -163,15 +163,15 @@ pub async fn extract_facts_from_conversation(
     };
 
     let system_prompt = format!(
-        r#"You are a fact extractor. Analyze the conversation below and extract ONLY new personal facts about the user.
+        r#"You are a strict personal fact extractor. Analyze the conversation below and extract ONLY permanent, long-term personal facts about the user.
 
 Rules:
-- Extract facts like: name, job, location, hobbies, preferences, family, pets, technical skill level
-- Each fact must be a single short sentence (under 100 characters)
-- Do NOT extract opinions about topics, conversation context, or things the assistant said
-- Do NOT repeat facts already known (listed below)
-- If there are NO new facts, respond with exactly: NONE
-- Output one fact per line, no bullets, no numbering
+- ONLY extract core identity facts: Name, occupation, location, family members, pets, allergies, or major long-term hobbies.
+- Do NOT extract short-term interests, current goals, shopping preferences, budget, opinions, or conversational context. (e.g., "Interested in OLED TVs" or "Wants to buy a TV" are short-term context, NOT long-term facts).
+- Each fact must be a single short sentence (under 100 characters).
+- Do NOT repeat facts already known (listed below).
+- If there are NO new permanent facts, respond with exactly: NONE.
+- Output one fact per line, no bullets, no numbering.
 
 Already known facts:
 {}
@@ -191,7 +191,10 @@ Conversation:
         .json(&serde_json::json!({
             "model": model,
             "messages": ollama_messages,
-            "stream": false
+            "stream": false,
+            "options": {
+                "temperature": 0.1
+            }
         }))
         .send()
         .await
