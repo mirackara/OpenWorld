@@ -4,17 +4,56 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useModelStore, getFriendlyModelName } from '../stores/modelStore';
 import './SettingsPage.css';
 
+interface MemoryItem {
+    id: string;
+    content: string;
+    created_at: string;
+}
+
 export default function SettingsPage() {
     const { theme, setTheme, defaultModel, setDefaultModel, systemPrompt, setSystemPrompt } =
         useSettingsStore();
     const { installedModels, setInstalledModels } = useModelStore();
     const [saved, setSaved] = useState(false);
+    const [memories, setMemories] = useState<MemoryItem[]>([]);
+    const [newMemory, setNewMemory] = useState('');
 
     useEffect(() => {
         invoke<any[]>('list_models')
             .then(setInstalledModels)
             .catch(console.error);
+        loadMemories();
     }, []);
+
+    async function loadMemories() {
+        try {
+            const mems = await invoke<MemoryItem[]>('list_memories_cmd');
+            setMemories(mems);
+        } catch (err) {
+            console.error('Failed to load memories:', err);
+        }
+    }
+
+    async function handleAddMemory() {
+        const content = newMemory.trim();
+        if (!content) return;
+        try {
+            await invoke('add_memory_cmd', { content });
+            setNewMemory('');
+            loadMemories();
+        } catch (err) {
+            console.error('Failed to add memory:', err);
+        }
+    }
+
+    async function handleDeleteMemory(id: string) {
+        try {
+            await invoke('delete_memory_cmd', { id });
+            loadMemories();
+        } catch (err) {
+            console.error('Failed to delete memory:', err);
+        }
+    }
 
     async function handleSave() {
         try {
@@ -95,6 +134,56 @@ export default function SettingsPage() {
                                 </option>
                             ))}
                         </select>
+                    </div>
+                </section>
+
+                {/* Memory */}
+                <section className="settings-section card">
+                    <h3 className="settings-section-title">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2a10 10 0 0110 10 10 10 0 01-10 10A10 10 0 012 12 10 10 0 0112 2z" />
+                            <path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                        Memory
+                    </h3>
+                    <div className="setting-col">
+                        <span className="setting-label">Things the AI remembers about you</span>
+                        <span className="setting-desc">
+                            These facts persist across all conversations. Add things like your name, preferences, or context the AI should always know.
+                        </span>
+
+                        <div className="memory-list">
+                            {memories.length === 0 && (
+                                <p className="memory-empty">No memories yet. Add some below!</p>
+                            )}
+                            {memories.map((mem) => (
+                                <div key={mem.id} className="memory-item">
+                                    <span className="memory-content">{mem.content}</span>
+                                    <button
+                                        className="memory-delete"
+                                        onClick={() => handleDeleteMemory(mem.id)}
+                                        title="Remove memory"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="memory-add">
+                            <input
+                                className="input memory-input"
+                                placeholder="e.g., My name is John, I'm a software engineer..."
+                                value={newMemory}
+                                onChange={(e) => setNewMemory(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddMemory();
+                                }}
+                            />
+                            <button className="btn btn-primary" onClick={handleAddMemory} disabled={!newMemory.trim()}>
+                                Add
+                            </button>
+                        </div>
                     </div>
                 </section>
 
